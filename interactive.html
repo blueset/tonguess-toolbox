@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tonguess Solver</title>
+    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.3.5/dist/alpine.js" defer></script>
+    <script src="data.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/kognise/water.css@latest/dist/dark.min.css">
+    <link href="https://free.bboxtype.com/embedfonts/?family=FiraGO:400,600i" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inconsolata&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container" x-data="app()">
+        <div class="logo-box">
+            <a href="index.html"><img src="tonguess-toolbox.svg" alt="Tonguess Toolbox"></a>
+            <div class="titles">
+                <h1>Tonguess Solver</h1>
+                <h2>by Eana Hufwe</h2>
+            </div>
+        </div>
+        <article x-show="!guessing" id="word-size">
+            <button @click="start(3)">3 letters</button>
+            <button @click="start(4)">4 letters</button>
+        </article>
+        <article x-show="guessing" id="guess">
+            <section>
+                <button class="restart" @click="restart()">Restart</button>
+            </section>
+            <section class="pick">
+                <h3>Pick a word</h3>
+                <p id="random-word" class="word" x-text="randomWord"></p>
+                <button @click="pickWord()">Change</button>
+            </section>
+            <section class="guess">
+                <h3>Guess...</h3>
+                <p id="guess" class="word" x-text="guess"></p>
+                <h3>... and choose ...</h3>
+                <div id="options">
+                    <template x-for="i in range(length + 1)" x-key="i">
+                        <div class="option-row">
+                            <template x-for="j in range(length - i + 1)" x-key="j">
+                                <button @click="choose(`${i}${j}`)" x-bind:disabled="options[`${i}${j}`] == undefined">
+                                    <span x-text="i"></span> – <span x-text="j"></span>
+                                    <span class="count" x-text="optionsOpt.options && optionsOpt.options[`${i}${j}`]" x-show="options[`${i}${j}`] != undefined"></span>
+                                </button>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </section>
+            <section>
+                <div class="candidates">
+                    <template x-for="word in candidates.slice(0, 100)" x-key="word">
+                        <div class="candidate word" x-text="word"></div>
+                    </template>
+                    <div class="candidate word" x-show="candidates && candidates.length > 100">...</div>
+                </div>
+            </section>
+            <section>
+                <button class="restart" @click="restart()">Restart</button>
+            </section>
+        </article>
+    </div>
+    <style>
+        #word-size {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+        }
+        #word-size button {
+            height: 10rem;
+            flex-grow: 1;
+            max-width: 10rem;
+        }
+        section.pick {
+            display: flex;
+            align-content: baseline;
+            justify-content: space-between;
+        }
+
+        body {
+            font-family: "FiraGo", sans-serif;
+        }
+        .logo-box {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo-box img {
+            height: 6rem;
+            padding-right: 1.5rem;
+        }
+
+        .logo-box h1, .logo-box h2 {
+            margin: 0;
+            font-weight: 600;
+            font-style: italic;
+        }
+        .word {
+            font-family: 'Inconsolata', monospace;
+            font-size: 3rem;
+            border-width:  1px;
+            border-style:  solid;
+            border-radius: 0.5rem;
+            padding:  1rem;
+            line-height: 1;
+            margin: 0;
+            display: block;
+            width: 3em;
+            text-align: center;
+        }
+
+        .pick .word {
+            font-size: 2rem;
+        }
+
+        .pick h3 {
+            margin:  0;
+            line-height: 1;
+        }
+
+        p#guess {
+            margin: 0 auto;
+            font-size: 4rem;
+        }
+
+        .option-row button {
+            height: 4rem;
+            width: 4rem;
+            padding:  0;
+            font-variant-numeric: lining-nums;
+            position: relative;
+        }
+
+        span.count {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            font-size: 0.75rem;
+        }
+
+        .candidate.word {
+            font-size: 2rem;
+            padding: 0.1em;
+            width: 2.3em;
+        }
+
+        .candidates {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+            grid-row-gap: 0.5rem;
+            grid-column-gap: 0.5rem;
+        }
+
+        section {
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom-style: solid;
+        }
+        .restart {
+            width: 100%;
+        }
+    </style>
+    <script>
+        function app(){
+            const extractCandidates = function(node, candidates) {
+                if (typeof node === "string") {
+                    candidates.push(node);
+                } else if (node !== null) {
+                    for (var key in node.outcomes) {
+                        extractCandidates(node.outcomes[key], candidates);
+                    }
+                }
+                return candidates;
+            };
+            return {
+                guessing: false,
+                length: 0,
+                randomWord: "-----",
+                guess: "-----",
+                dict: [],
+                mapping: {},
+                options: {},
+                optionsOpt: {},
+                candidates: [],
+                range: function(size) {
+                    const arr = [];
+                    for (var i = 0; i < size; i++) arr.push(i);
+                    return arr;
+                },
+                start: function(length){
+                    this.length = length;
+                    this.guessing = true;
+                    this.dict = dict[length];
+                    this.mapping = mappings[length];
+                    this.pickWord();
+                    this.updateCandidates();
+                },
+                pickWord: function(){
+                    this.randomWord = ".....";
+                    this.randomWord = this.dict[Math.floor(Math.random() * this.dict.length)];
+                },
+                updateCandidates: function() {
+                    if (this.mapping === null) {
+                        this.guess = "== null ==";
+                        this.candidates = [];
+                        this.options = {};
+                    } else if (typeof this.mapping === "string") {
+                        this.guess = this.mapping;
+                        this.candidates = [this.mapping];
+                        this.options = {};
+                    } else {
+                        this.guess = this.mapping.guess;
+                        this.candidates = [];
+                        // this.candidates = extractCandidates(this.mapping, []);
+                        this.options = {};
+                        for (var i of Object.keys(this.mapping.outcomes)) {
+                            if (this.mapping.outcomes[i] != null) {
+                                const c = extractCandidates(this.mapping.outcomes[i], []);
+                                this.options[i] = c.length;
+                                this.candidates = this.candidates.concat(c);
+                            }
+                        }
+                        // console.log(this.candidates);
+                        this.optionsOpt.options = this.options;
+                    }
+                },
+                choose: function(option){
+                    this.mapping = this.mapping.outcomes[option];
+                    this.updateCandidates();
+                },
+                restart: function(){
+                    this.guessing = false;
+                    this.dict = [];
+                    this.mappings = null;
+                    this.candidates = [];
+                }
+            };
+        }
+    </script>
+</body>
+</html>

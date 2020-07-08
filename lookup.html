@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tonguess Filter</title>
+    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.3.5/dist/alpine.js" defer></script>
+    <script src="data.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/kognise/water.css@latest/dist/dark.min.css">
+    <link href="https://free.bboxtype.com/embedfonts/?family=FiraGO:400,600i" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inconsolata&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container" x-data="app()" x-init="init()">
+        <div class="logo-box">
+            <a href="index.html"><img src="tonguess-toolbox.svg" alt="Tonguess Toolbox"></a>
+            <div class="titles">
+                <h1>Tonguess Filter</h1>
+                <h2>by Eana Hufwe</h2>
+            </div>
+        </div>
+        <article>
+            <section>
+                <div class="title-row">
+                    <h3>History</h3>
+                    <button @click="undo()">Undo</button>
+                    <button @click="init()">Reset</button>
+                </div>
+                <div class="history-entries">
+                    <template x-for="entry in history" :key="entry.input">
+                        <div class="history-row">
+                            <!-- <div class="word" x-text="JSON.stringify(entry)"></div> -->
+                            <div class="word" x-text="entry.word"></div>
+                            <!-- <div class="word" x-text="entry.key"></div> -->
+                            <div class="number">
+                                <span x-text="entry.key[0]"></span> –
+                                <span x-text="entry.key[1]"></span> (<span x-text="entry.candidates.length"></span>)
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+            <section>
+                <h3>Type ...</h3>
+                <form @submit="addWord($event)">
+                    <input type="text" x-ref="textbox" x-model:value="input" @input="updateText()" required placeholder="ABCD02 or EFG10">
+                    <button type="submit">Add</button>
+                </form>
+            </section>
+            <section>
+                <h3>Candidates (<span x-text="length == 0 ? '?' : candidates.length"></span>)</h3>
+                <div class="candidates">
+                    <template x-for="word in candidates.slice(0, 100)" x-key="word">
+                        <div class="candidate word" x-text="word"></div>
+                    </template>
+                    <div class="candidate word" x-show="candidates && candidates.length > 100">...</div>
+                </div>
+            </section>
+        </article>
+    </div>
+    <style>
+        body {
+            font-family: "FiraGo", sans-serif;
+        }
+        .logo-box {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo-box img {
+            height: 6rem;
+            padding-right: 1.5rem;
+        }
+
+        .logo-box h1, .logo-box h2 {
+            margin: 0;
+            font-weight: 600;
+            font-style: italic;
+        }
+        .word {
+            font-family: 'Inconsolata', monospace;
+            font-size: 3rem;
+            border-width:  1px;
+            border-style:  solid;
+            border-radius: 0.5rem;
+            padding:  1rem;
+            line-height: 1;
+            margin: 0;
+            display: block;
+            width: 2.3em;
+            text-align: center;
+        }
+
+        .title-row {
+            display: flex;
+            flex-direction: row;
+        }
+
+        .title-row h3 {
+            flex-grow: 1;
+        }
+
+        .history-row {
+            text-align: center;
+        }
+
+        .history-row .word {
+            font-size: 2rem;
+            padding: 0.25em;
+        }
+
+        .history-entries {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+            grid-row-gap: 0.5rem;
+            grid-column-gap: 0.5rem;
+        }
+
+        form {
+            display: flex;
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+        }
+
+        .candidate.word {
+            font-size: 2rem;
+            padding: 0.1em;
+        }
+
+        .candidates {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+            grid-row-gap: 0.5rem;
+            grid-column-gap: 0.5rem;
+        }
+
+        section {
+            margin-bottom: 2rem;
+            padding-bottom: 2rem;
+            border-bottom-style: solid;
+        }
+    </style>
+    <script>
+        function app(){
+            const calculate = function(guess, answer) {
+                const guess_c = {}, answer_c = {};
+                var get = 0, touch = 0;
+
+                for (i = 0; i < guess.length; i++) {
+                    if (guess[i] === answer[i]) {
+                        get++;
+                    } else {
+                        if (guess_c[guess[i]] === undefined) guess_c[guess[i]] = 0;
+                        guess_c[guess[i]]++;
+                        if (answer_c[answer[i]] === undefined) answer_c[answer[i]] = 0;
+                        answer_c[answer[i]]++;
+                    }
+                }
+
+                for (key of Object.keys(guess_c)) {
+                    touch += Math.min(guess_c[key], answer_c[key] || 0);
+                }
+                // console.log(`${guess} on ${answer} is ${get}${touch}`);
+                return `${get}${touch}`;
+            };
+            return {
+                length: 0,
+                input: "",
+                dict: [],
+                candidates: [],
+                history: [],
+                init: function(){
+                     this.candidates = [];
+                     this.input = "";
+                     this.length = 0;
+                     this.history = [];
+                },
+                updateText: function(){
+                    this.input = this.input.toUpperCase();
+                    var regex = /^[A-Z]{3,4}\d\d$/g;
+                    if (this.length == 3) {
+                        regex = /^[A-Z]{3}\d\d$/g;
+                    }
+                    else if (this.length == 4) {
+                        regex = /^[A-Z]{4}\d\d$/g;
+                    }
+
+                    var len = this.input.length;
+                    if (this.input.match(regex) === null) {
+                        this.$refs.textbox.setCustomValidity("Must be a word followed by 2 numbers");
+                    }
+                    else if (parseInt(this.input[len-2]) + parseInt(this.input[len-1]) > len - 2) {
+                        this.$refs.textbox.setCustomValidity("2 numbers must add up to be less than or equal to the number of letters.");
+                    }
+                    else if ((new Set(this.input.substr(0, len - 2))).size != len - 2) {
+                        this.$refs.textbox.setCustomValidity("All letters must be unique.");
+                    }
+                    else {
+                        this.$refs.textbox.setCustomValidity("");
+                    }
+                },
+                addWord: function(e) {
+                    e.preventDefault();
+                    if (this.length === 0) {
+                        this.length = this.input.length - 2;
+                        this.candidates = dict[this.length];
+                    }
+
+                    const word = this.input.substr(0, this.length);
+                    const key = this.input.substr(this.length, 2);
+
+                    this.candidates = this.candidates.filter((v) => {
+                        return calculate(word, v) === key;
+                    });
+
+                    this.history.push({
+                        input: this.input,
+                        candidates: [...this.candidates],
+                        length: this.length,
+                        word: word,
+                        key: key,
+                    });
+                    this.input = "";
+
+                },
+                undo: function() {
+                    if (this.history.length < 2) {
+                        return this.init();
+                    }
+                    this.history.pop();
+                    const {candidates, length} = this.history[this.history.length - 1];
+                    this.candidates = candidates;
+                    this.length = length;
+                },
+            };
+        }
+    </script>
+</body>
+</html>
